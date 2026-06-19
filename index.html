@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>漢字アプリ</title>
 
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -10,19 +10,44 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
-    body {
-      margin: 0;
-      background: #f8fafc;
-      color: #111827;
-      font-family: sans-serif;
+    :root {
+      --bg: #f8fafc;
+      --text: #111827;
+      --sub: #4b5563;
+      --line: #d1d5db;
+      --green: #22c55e;
+      --green-soft: #f0fdf4;
+      --blue: #93c5fd;
+      --blue-soft: #eff6ff;
+      --yellow-soft: #fef3c7;
+      --yellow-border: #fde68a;
     }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      -webkit-text-size-adjust: 100%;
+    }
+
     button {
       cursor: pointer;
-      border: 1px solid #d1d5db;
+      border: 1px solid var(--line);
       background: white;
+      color: var(--text);
     }
+
     button:disabled {
       cursor: default;
+      opacity: 0.5;
     }
   </style>
 </head>
@@ -32,59 +57,66 @@
   <script type="text/babel">
     const { useEffect, useMemo, useRef, useState } = React;
 
+    /**
+     * 小4 漢字対策アプリ（完全版 / GitHub Pages 1ファイル版）
+     *
+     * 使い方：普段さわるのは RAW_KANJI_TEXT だけです。
+     * 「よみ（補足）,漢字」を1行ずつ入れると、そのまま範囲変更できます。
+     */
+
     const RAW_KANJI_TEXT = `
-め,芽
-れい,例
-ひょう,標
-さい,菜
-けん,建
-たい,帯
-ひ,飛
-たつ,達
-しん,信
-くん,訓
-せい,成
-ぐん,群
-ろく,録
-じゅん,順
-てん,典
-し,司
-き,機
-るい,類
-けい,景
-しょ,初
-きょう,京
-ざん,残
-さく,昨
-かん,関
-しん,臣
-かん,感
-さい,再
-いん,印
-ぎょ,漁
-よ,余
-さい,埼
-とち,栃
-しん,深
-ふ,府
-てき,的
-ひつ,必
-でん,伝
-こ,固
-りょう,量
-なし,梨
-い,井
-まち,町
-ご,後
-めい,明
-い,以
-ざい,材
-り,利
-はた,旗
-かん,観
-gi,議
-し,試
-せつ,説
+め（木のめ）,芽
+れい（れい題）,例
+ひょう（目ひょう）,標
+さい（野さい）,菜
+けん（けん設）,建
+たい（熱たい）,帯
+ひ（ひ行機）,飛
+たつ（たつ人）,達
+しん（しんじる）,信
+くん（くん読み）,訓
+せい（せい功）,成
+ぐん（ぐん馬）,群
+ろく（ろく音）,録
+じゅん（じゅん番）,順
+てん（のり子）,典
+し（つかさ）,司
+き（き械）,機
+るい（種るい）,類
+けい（けい品）,景
+しょ（はじめて）,初
+きょう（東きょう）,京
+ざん（のこり）,残
+さく（さく年）,昨
+かん（かん東）,関
+しん（大じん）,臣
+かん（かん想）,感
+さい（さい開）,再
+いん（しるし）,印
+ぎょ（りょう師）,漁
+よ（あまり）,余
+さい（さい玉）,埼
+とち（とち木）,栃
+しん（ふかい）,深
+ふ（大阪ふ）,府
+てき（まと）,的
+ひつ（ひつ要）,必
+でん（つたえる）,伝
+こ（かたまる）,固
+りょう（分りょう）,量
+なし（山なし）,梨
+い（いのうえ）,井
+まち（ちょう）,町
+ご（うしろ）,後
+めい（あかるい）,明
+い（いじょう）,以
+ざい（ざい料）,材
+り（り用）,利
+はた（国き）,旗
+かん（みる）,観
+ぎ（会ぎ）,議
+し（ためす）,試
+せつ（せつ明）,説
 `.trim();
 
     const ROUND_SIZE = 50;
@@ -174,6 +206,7 @@ gi,議
     function KanjiApp() {
       const canvasRef = useRef(null);
       const drawingSnapshotRef = useRef(null);
+      const activePointerIdRef = useRef(null);
 
       const baseQuestions = useMemo(() => parseKanjiText(RAW_KANJI_TEXT), []);
 
@@ -248,19 +281,8 @@ gi,議
         if (!canvas) return { x: 0, y: 0 };
 
         const rect = canvas.getBoundingClientRect();
-        let clientX = 0;
-        let clientY = 0;
-
-        if (e.touches && e.touches.length > 0) {
-          clientX = e.touches[0].clientX;
-          clientY = e.touches[0].clientY;
-        } else if (e.changedTouches && e.changedTouches.length > 0) {
-          clientX = e.changedTouches[0].clientX;
-          clientY = e.changedTouches[0].clientY;
-        } else {
-          clientX = e.clientX ?? e.nativeEvent?.clientX ?? 0;
-          clientY = e.clientY ?? e.nativeEvent?.clientY ?? 0;
-        }
+        const clientX = e.clientX ?? 0;
+        const clientY = e.clientY ?? 0;
 
         return { x: clientX - rect.left, y: clientY - rect.top };
       };
@@ -355,6 +377,7 @@ gi,議
         setShowCheckpoint(false);
         setCheckpointMessage("");
         drawingSnapshotRef.current = null;
+        activePointerIdRef.current = null;
 
         setTimeout(() => {
           if (nextPlayMode === "write") {
@@ -378,6 +401,11 @@ gi,議
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        activePointerIdRef.current = e.pointerId;
+        if (canvas.setPointerCapture) {
+          try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+        }
+
         const ctx = canvas.getContext("2d");
         const p = getPos(e);
         ctx.beginPath();
@@ -389,6 +417,7 @@ gi,議
         e.preventDefault();
         const canvas = canvasRef.current;
         if (!canvas?.isDrawing) return;
+        if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
 
         const ctx = canvas.getContext("2d");
         const p = getPos(e);
@@ -398,10 +427,16 @@ gi,議
 
       const endDraw = (e) => {
         if (e?.preventDefault) e.preventDefault();
-        if (canvasRef.current) {
-          canvasRef.current.isDrawing = false;
-          saveCanvasSnapshot();
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return;
+
+        canvas.isDrawing = false;
+        activePointerIdRef.current = null;
+        if (canvas.releasePointerCapture && e.pointerId !== undefined) {
+          try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
         }
+        saveCanvasSnapshot();
       };
 
       const continueFromCheckpoint = () => {
@@ -410,6 +445,7 @@ gi,議
         setIndex((prev) => prev + 1);
         setShowAnswer(false);
         drawingSnapshotRef.current = null;
+        activePointerIdRef.current = null;
 
         setTimeout(() => {
           if (playMode === "write") {
@@ -499,7 +535,7 @@ gi,議
             lineHeight: 1.5,
           }}
         >
-          <h2 style={{ marginBottom: 8 }}>漢字チャレンジ（範囲変更しやすい版）</h2>
+          <h2 style={{ marginBottom: 8 }}>漢字チャレンジ（範囲変更しやすい完全版）</h2>
 
           <div style={{ marginBottom: 6, fontSize: 18 }}>スコア: {score}</div>
           <div style={{ marginBottom: 6, fontSize: 16 }}>ベスト: {bestScore}</div>
@@ -598,17 +634,11 @@ gi,議
               <div style={{ marginBottom: 16 }}>残っている苦手: {mistakes.length}問</div>
 
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button
-                  onClick={() => startRound(reviewMode, playMode)}
-                  style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}
-                >
+                <button onClick={() => startRound(reviewMode, playMode)} style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}>
                   もう一回
                 </button>
 
-                <button
-                  onClick={() => startRound("mixed", playMode)}
-                  style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}
-                >
+                <button onClick={() => startRound("mixed", playMode)} style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}>
                   通常モードへ
                 </button>
 
@@ -638,10 +668,7 @@ gi,議
               <div style={{ marginBottom: 12 }}>
                 いま {index + 1} / {deck.length}問まで完了。スコア {score}
               </div>
-              <button
-                onClick={continueFromCheckpoint}
-                style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}
-              >
+              <button onClick={continueFromCheckpoint} style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}>
                 つづける
               </button>
             </div>
@@ -662,18 +689,18 @@ gi,議
                       width: "100%",
                       height: CANVAS_HEIGHT,
                       touchAction: "none",
+                      WebkitUserSelect: "none",
+                      userSelect: "none",
                       background: "white",
                       marginBottom: 10,
                       borderRadius: 12,
                       display: "block",
                     }}
-                    onMouseDown={startDraw}
-                    onMouseMove={draw}
-                    onMouseUp={endDraw}
-                    onMouseLeave={endDraw}
-                    onTouchStart={startDraw}
-                    onTouchMove={draw}
-                    onTouchEnd={endDraw}
+                    onPointerDown={startDraw}
+                    onPointerMove={draw}
+                    onPointerUp={endDraw}
+                    onPointerCancel={endDraw}
+                    onPointerLeave={endDraw}
                   />
 
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -700,35 +727,20 @@ gi,議
 
                   {showAnswer && (
                     <div style={{ marginTop: 12 }}>
-                      <div
-                        style={{
-                          fontSize: 40,
-                          marginBottom: 10,
-                          fontFamily: ANSWER_FONT_FAMILY,
-                        }}
-                      >
+                      <div style={{ fontSize: 40, marginBottom: 10, fontFamily: ANSWER_FONT_FAMILY }}>
                         {q.kanji}
                       </div>
 
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        <button
-                          onClick={() => gradeWrite(2, true)}
-                          style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}
-                        >
+                        <button onClick={() => gradeWrite(2, true)} style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}>
                           できた +2
                         </button>
 
-                        <button
-                          onClick={() => gradeWrite(1, false)}
-                          style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}
-                        >
+                        <button onClick={() => gradeWrite(1, false)} style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}>
                           おしい +1
                         </button>
 
-                        <button
-                          onClick={() => gradeWrite(0, false)}
-                          style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}
-                        >
+                        <button onClick={() => gradeWrite(0, false)} style={{ fontSize: 18, padding: "10px 14px", borderRadius: 10 }}>
                           ダメ 0
                         </button>
                       </div>
@@ -737,9 +749,7 @@ gi,議
                 </>
               ) : (
                 <>
-                  <div style={{ marginBottom: 12, fontSize: 18 }}>
-                    あっている方をタップしてね
-                  </div>
+                  <div style={{ marginBottom: 12, fontSize: 18 }}>あっている方をタップしてね</div>
 
                   <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
                     {choices.map((c, i) => (
