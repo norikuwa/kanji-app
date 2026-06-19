@@ -1,1 +1,896 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>漢字チャレンジ（オフライン版）</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --text: #111827;
+      --sub: #4b5563;
+      --line: #d1d5db;
+      --green: #22c55e;
+      --green-soft: #f0fdf4;
+      --blue: #93c5fd;
+      --blue-soft: #eff6ff;
+      --yellow: #f59e0b;
+      --yellow-soft: #fef3c7;
+      --red-soft: #fee2e2;
+      --card: #ffffff;
+    }
 
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    .app {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+    }
+
+    .meta {
+      font-size: 16px;
+      margin-bottom: 6px;
+    }
+
+    .sub {
+      color: #555;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .mode {
+      color: #444;
+      font-size: 15px;
+      margin-bottom: 12px;
+    }
+
+    .toolbar,
+    .answer-buttons,
+    .finish-buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    button {
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+      border-radius: 10px;
+      font-size: 18px;
+      padding: 10px 14px;
+      min-height: 44px;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .toolbar button.active-blue {
+      background: #dbeafe;
+    }
+
+    .toolbar button.active-yellow {
+      background: #fde68a;
+    }
+
+    .progress-text {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 16px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--green);
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      padding: 16px;
+    }
+
+    .finish-card {
+      border: 2px solid #86efac;
+      background: var(--green-soft);
+    }
+
+    .checkpoint-card {
+      border: 2px solid #93c5fd;
+      background: var(--blue-soft);
+    }
+
+    .empty-card {
+      border: 2px dashed #d1d5db;
+      background: #fafafa;
+    }
+
+    .question-no {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .yomi {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 420px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      background: white;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      margin-bottom: 10px;
+    }
+
+    .answer-area {
+      margin-top: 12px;
+    }
+
+    .kanji-answer {
+      font-size: 40px;
+      margin-bottom: 10px;
+      font-family: "UD Digi Kyokasho N-R", "UD デジタル 教科書体 N-R", "YuKyokasho Yoko", "YuKyokasho", "Hiragino Mincho ProN", serif;
+    }
+
+    .spot-help {
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+
+    .spot-grid {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .spot-choice {
+      font-size: 56px;
+      font-family: "UD Digi Kyokasho N-R", "UD デジタル 教科書体 N-R", "YuKyokasho Yoko", "YuKyokasho", "Hiragino Mincho ProN", serif;
+      padding: 20px;
+      min-width: 140px;
+      min-height: 140px;
+      border-radius: 16px;
+      border: 1px solid #ccc;
+      background: white;
+    }
+
+    @media (max-width: 640px) {
+      .title { font-size: 24px; }
+      .yomi { font-size: 24px; }
+      .spot-choice { font-size: 42px; min-width: 120px; min-height: 120px; }
+      canvas { height: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1 class="title">漢字チャレンジ（オフライン版）</h1>
+
+    <div class="meta" id="scoreLine">スコア: 0</div>
+    <div class="meta" id="bestLine">ベスト: 0</div>
+    <div class="meta" id="mistakeLine">苦手メモ: 0問</div>
+    <div class="sub" id="totalLine">登録問題数: 0問</div>
+    <div class="mode" id="modeLine">今回の出題: 0問</div>
+
+    <div class="toolbar">
+      <button id="btnWrite">✏️ かくモード</button>
+      <button id="btnSpot">✅ せいかいタップ</button>
+      <button id="btnRestart">🔄 50問やり直す</button>
+      <button id="btnMistakesOnly">❗ 間違えたものだけ</button>
+    </div>
+
+    <div class="progress-text" id="progressText">進みぐあい: 0 / 0（0%）</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div id="mainArea"></div>
+  </div>
+
+  <script>
+    // =====================================
+    // ここだけ変えれば範囲変更できます
+    // 「よみ（補足）,漢字」を1行ずつ入力してください
+    // =====================================
+    const RAW_KANJI_TEXT = `
+め（木のめ）,芽
+れい（れい題）,例
+ひょう（目ひょう）,標
+さい（野さい）,菜
+けん（けん設）,建
+たい（熱たい）,帯
+ひ（ひ行機）,飛
+たつ（たつ人）,達
+しん（しんじる）,信
+くん（くん読み）,訓
+せい（せい功）,成
+ぐん（ぐん馬）,群
+ろく（ろく音）,録
+じゅん（じゅん番）,順
+てん（のり子）,典
+し（つかさ）,司
+き（き械）,機
+るい（種るい）,類
+けい（けい品）,景
+しょ（はじめて）,初
+きょう（東きょう）,京
+ざん（のこり）,残
+さく（さく年）,昨
+かん（かん東）,関
+しん（大じん）,臣
+かん（かん想）,感
+さい（さい開）,再
+いん（しるし）,印
+ぎょ（りょう師）,漁
+よ（あまり）,余
+さい（さい玉）,埼
+とち（とち木）,栃
+しん（ふかい）,深
+ふ（大阪ふ）,府
+てき（まと）,的
+ひつ（ひつ要）,必
+でん（つたえる）,伝
+こ（かたまる）,固
+りょう（分りょう）,量
+なし（山なし）,梨
+い（いのうえ）,井
+まち（ちょう）,町
+ご（うしろ）,後
+めい（あかるい）,明
+い（いじょう）,以
+ざい（ざい料）,材
+り（り用）,利
+はた（国き）,旗
+かん（みる）,観
+ぎ（会ぎ）,議
+し（ためす）,試
+せつ（せつ明）,説
+`.trim();
+
+    const ROUND_SIZE = 50;
+    const MISTAKE_MIX_COUNT = 15;
+    const CHECKPOINT = 10;
+    const STORAGE_KEY_MISTAKES = "kanji_mistakes_offline_v2";
+    const STORAGE_KEY_BEST = "kanji_best_offline_v2";
+
+    function parseKanjiText(rawText) {
+      return rawText
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map((line, index) => {
+          const parts = line.split(",").map(part => part.trim());
+          return {
+            id: index + 1,
+            yomi: parts[0] || "",
+            kanji: parts[1] || ""
+          };
+        })
+        .filter(item => item.yomi && item.kanji);
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function uniqueById(arr) {
+      const seen = new Set();
+      return arr.filter(item => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+    }
+
+    function buildMixedDeck(allQuestions, mistakes) {
+      const all = uniqueById(allQuestions);
+      const mistakeSet = new Set(mistakes);
+
+      const mistakeQuestions = shuffle(all.filter(q => mistakeSet.has(q.id)));
+      const normalQuestions = shuffle(all.filter(q => !mistakeSet.has(q.id)));
+
+      const mistakePart = mistakeQuestions.slice(0, MISTAKE_MIX_COUNT);
+      const remainCount = Math.max(ROUND_SIZE - mistakePart.length, 0);
+      const normalPart = normalQuestions.slice(0, remainCount);
+
+      return shuffle([...mistakePart, ...normalPart]).slice(0, Math.min(ROUND_SIZE, all.length));
+    }
+
+    function buildMistakeOnlyDeck(allQuestions, mistakes) {
+      const mistakeSet = new Set(mistakes);
+      return shuffle(allQuestions.filter(q => mistakeSet.has(q.id)));
+    }
+
+    function getCheckpointMessage(answered) {
+      if (answered === 10) return "10問クリア！いいスタート。";
+      if (answered === 20) return "20問到達！まだまだいける。";
+      if (answered === 30) return "30問突破！あと少し。";
+      if (answered === 40) return "40問きた！ゴールが見えてきた。";
+      if (answered === 50) return "50問完走！すごい！";
+      return "";
+    }
+
+    function getRandomWrongChoice(current, allQuestions) {
+      const sameLength = allQuestions.filter(
+        item => item.kanji !== current.kanji && item.kanji.length === current.kanji.length
+      );
+      if (sameLength.length > 0) {
+        return sameLength[Math.floor(Math.random() * sameLength.length)].kanji;
+      }
+      const fallback = allQuestions.filter(item => item.kanji !== current.kanji);
+      if (fallback.length > 0) {
+        return fallback[Math.floor(Math.random() * fallback.length)].kanji;
+      }
+      return current.kanji;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    const state = {
+      baseQuestions: parseKanjiText(RAW_KANJI_TEXT),
+      deck: [],
+      index: 0,
+      score: 0,
+      bestScore: Number(localStorage.getItem(STORAGE_KEY_BEST) || 0),
+      mistakes: [],
+      playMode: "write",
+      reviewMode: "mixed",
+      finished: false,
+      showAnswer: false,
+      showCheckpoint: false,
+      checkpointMessage: "",
+      choices: [],
+      drawingSnapshot: null,
+      activePointerId: null
+    };
+
+    try {
+      state.mistakes = JSON.parse(localStorage.getItem(STORAGE_KEY_MISTAKES) || "[]");
+      if (!Array.isArray(state.mistakes)) state.mistakes = [];
+    } catch {
+      state.mistakes = [];
+    }
+
+    const el = {
+      scoreLine: document.getElementById("scoreLine"),
+      bestLine: document.getElementById("bestLine"),
+      mistakeLine: document.getElementById("mistakeLine"),
+      totalLine: document.getElementById("totalLine"),
+      modeLine: document.getElementById("modeLine"),
+      progressText: document.getElementById("progressText"),
+      progressFill: document.getElementById("progressFill"),
+      mainArea: document.getElementById("mainArea"),
+      btnWrite: document.getElementById("btnWrite"),
+      btnSpot: document.getElementById("btnSpot"),
+      btnRestart: document.getElementById("btnRestart"),
+      btnMistakesOnly: document.getElementById("btnMistakesOnly")
+    };
+
+    function saveMistakes() {
+      localStorage.setItem(STORAGE_KEY_MISTAKES, JSON.stringify(state.mistakes));
+    }
+
+    function saveBest() {
+      localStorage.setItem(STORAGE_KEY_BEST, String(state.bestScore));
+    }
+
+    function updateMistakes(id, ok) {
+      const s = new Set(state.mistakes);
+      if (ok) s.delete(id);
+      else s.add(id);
+      state.mistakes = [...s];
+      saveMistakes();
+    }
+
+    function progressPercent() {
+      if (!state.deck.length) return 0;
+      const answered = state.finished ? state.deck.length : state.index;
+      return Math.round((answered / state.deck.length) * 100);
+    }
+
+    function mixedMistakeCount() {
+      return Math.min(
+        MISTAKE_MIX_COUNT,
+        state.baseQuestions.filter(item => state.mistakes.includes(item.id)).length,
+        state.deck.length
+      );
+    }
+
+    function buildChoicesForCurrent() {
+      const q = state.deck[state.index];
+      if (!q) {
+        state.choices = [];
+        return;
+      }
+      const wrong = getRandomWrongChoice(q, state.baseQuestions);
+      state.choices = shuffle([
+        { label: q.kanji, type: "correct" },
+        { label: wrong, type: "wrong" }
+      ]);
+    }
+
+    function getCanvas() {
+      return document.getElementById("drawCanvas");
+    }
+
+    function saveCanvasSnapshot() {
+      const canvas = getCanvas();
+      if (!canvas) return;
+      try {
+        state.drawingSnapshot = canvas.toDataURL("image/png");
+      } catch {
+        state.drawingSnapshot = null;
+      }
+    }
+
+    function clearCanvas() {
+      const canvas = getCanvas();
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      state.drawingSnapshot = null;
+      canvas.dataset.drawing = "0";
+      state.activePointerId = null;
+    }
+
+    function restoreCanvasSnapshot() {
+      const canvas = getCanvas();
+      if (!canvas || !state.drawingSnapshot) return;
+
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      img.onload = () => {
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        ctx.drawImage(img, 0, 0, rect.width, rect.height);
+      };
+      img.src = state.drawingSnapshot;
+    }
+
+    function resizeCanvas() {
+      const canvas = getCanvas();
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const snapshot = state.drawingSnapshot;
+      const dpr = window.devicePixelRatio || 1;
+
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#111827";
+
+      if (snapshot) {
+        restoreCanvasSnapshot();
+      }
+    }
+
+    function getPos(e, canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.clientX ?? 0;
+      const clientY = e.clientY ?? 0;
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    }
+
+    function initCanvas() {
+      const canvas = getCanvas();
+      if (!canvas) return;
+
+      resizeCanvas();
+
+      canvas.onpointerdown = (e) => {
+        e.preventDefault();
+        state.activePointerId = e.pointerId;
+
+        if (canvas.setPointerCapture) {
+          try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+        }
+
+        const ctx = canvas.getContext("2d");
+        const p = getPos(e, canvas);
+
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        canvas.dataset.drawing = "1";
+      };
+
+      canvas.onpointermove = (e) => {
+        e.preventDefault();
+        if (canvas.dataset.drawing !== "1") return;
+        if (state.activePointerId !== null && e.pointerId !== state.activePointerId) return;
+
+        const ctx = canvas.getContext("2d");
+        const p = getPos(e, canvas);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      };
+
+      const endDraw = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        if (state.activePointerId !== null && e && e.pointerId !== state.activePointerId) return;
+
+        canvas.dataset.drawing = "0";
+        state.activePointerId = null;
+
+        if (canvas.releasePointerCapture && e && e.pointerId !== undefined) {
+          try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+        }
+
+        saveCanvasSnapshot();
+      };
+
+      canvas.onpointerup = endDraw;
+      canvas.onpointercancel = endDraw;
+      canvas.onpointerleave = endDraw;
+    }
+
+    function finishRoundIfNeeded(nextScore) {
+      if (nextScore > state.bestScore) {
+        state.bestScore = nextScore;
+        saveBest();
+      }
+    }
+
+    function continueFromCheckpoint() {
+      state.showCheckpoint = false;
+      state.checkpointMessage = "";
+      state.index += 1;
+      state.showAnswer = false;
+      state.drawingSnapshot = null;
+      state.activePointerId = null;
+
+      if (state.playMode === "spot") {
+        buildChoicesForCurrent();
+      }
+
+      render();
+
+      if (state.playMode === "write") {
+        initCanvas();
+        clearCanvas();
+      }
+    }
+
+    function gradeWrite(point, ok) {
+      const q = state.deck[state.index];
+      if (!q) return;
+
+      const nextScore = state.score + point;
+      state.score = nextScore;
+      updateMistakes(q.id, ok);
+
+      const answered = state.index + 1;
+
+      // 採点したら前問の手書き状態を確実に破棄
+      state.drawingSnapshot = null;
+      state.showAnswer = false;
+      state.activePointerId = null;
+
+      if (answered >= state.deck.length) {
+        state.finished = true;
+        finishRoundIfNeeded(nextScore);
+        render();
+        return;
+      }
+
+      if (answered % CHECKPOINT === 0) {
+        state.checkpointMessage = getCheckpointMessage(answered);
+        state.showCheckpoint = true;
+        render();
+        return;
+      }
+
+      state.index += 1;
+      render();
+      initCanvas();
+      clearCanvas();
+    }
+
+    function answerSpot(type) {
+      const q = state.deck[state.index];
+      if (!q) return;
+
+      const ok = type === "correct";
+      const nextScore = state.score + (ok ? 2 : 0);
+      state.score = nextScore;
+      updateMistakes(q.id, ok);
+
+      const answered = state.index + 1;
+
+      if (answered >= state.deck.length) {
+        state.finished = true;
+        finishRoundIfNeeded(nextScore);
+        render();
+        return;
+      }
+
+      if (answered % CHECKPOINT === 0) {
+        state.checkpointMessage = getCheckpointMessage(answered);
+        state.showCheckpoint = true;
+        render();
+        return;
+      }
+
+      state.index += 1;
+      buildChoicesForCurrent();
+      render();
+    }
+
+    function startRound(nextReviewMode = state.reviewMode, nextPlayMode = state.playMode) {
+      let list;
+      if (nextReviewMode === "mistakesOnly") {
+        list = buildMistakeOnlyDeck(state.baseQuestions, state.mistakes);
+      } else {
+        list = buildMixedDeck(state.baseQuestions, state.mistakes);
+      }
+
+      state.reviewMode = nextReviewMode;
+      state.playMode = nextPlayMode;
+      state.deck = list;
+      state.index = 0;
+      state.score = 0;
+      state.finished = list.length === 0;
+      state.showAnswer = false;
+      state.showCheckpoint = false;
+      state.checkpointMessage = "";
+      state.drawingSnapshot = null;
+      state.activePointerId = null;
+
+      if (state.playMode === "spot") {
+        buildChoicesForCurrent();
+      } else {
+        state.choices = [];
+      }
+
+      render();
+
+      if (state.playMode === "write" && !state.finished && !state.showCheckpoint && state.deck.length > 0) {
+        initCanvas();
+        clearCanvas();
+      }
+    }
+
+    function renderMeta() {
+      el.scoreLine.textContent = `スコア: ${state.score}`;
+      el.bestLine.textContent = `ベスト: ${state.bestScore}`;
+      el.mistakeLine.textContent = `苦手メモ: ${state.mistakes.length}問`;
+      el.totalLine.textContent = `登録問題数: ${state.baseQuestions.length}問`;
+
+      if (state.reviewMode === "mistakesOnly") {
+        el.modeLine.textContent = `今のモード: 間違えたものだけ（${state.deck.length}問）`;
+      } else {
+        el.modeLine.textContent = `今回の出題: ${state.deck.length}問（うち苦手ミックス最大 ${mixedMistakeCount()}問）`;
+      }
+
+      const progress = progressPercent();
+      const answeredNow = state.finished ? state.deck.length : state.index;
+      el.progressText.textContent = `進みぐあい: ${answeredNow} / ${state.deck.length}（${progress}%）`;
+      el.progressFill.style.width = `${progress}%`;
+
+      el.btnWrite.className = state.playMode === "write" ? "active-blue" : "";
+      el.btnSpot.className = state.playMode === "spot" ? "active-blue" : "";
+      el.btnMistakesOnly.className = state.reviewMode === "mistakesOnly" ? "active-yellow" : "";
+      el.btnMistakesOnly.disabled = state.mistakes.length === 0;
+    }
+
+    function renderMain() {
+      const q = state.deck[state.index];
+
+      if (state.finished) {
+        el.mainArea.innerHTML = `
+          <div class="card finish-card">
+            <h3 style="margin-top:0;">${state.reviewMode === "mistakesOnly" ? "間違えたものだけクリア！" : "50問クリア！"}</h3>
+            <div style="font-size:20px; margin-bottom:8px;">今回のスコア: ${state.score}</div>
+            <div style="margin-bottom:8px;">ベストスコア: ${Math.max(state.bestScore, state.score)}</div>
+            <div style="margin-bottom:16px;">残っている苦手: ${state.mistakes.length}問</div>
+            <div class="finish-buttons">
+              <button id="finishRetry">もう一回</button>
+              <button id="finishNormal">通常モードへ</button>
+              <button id="finishResetMistakes">苦手メモをリセット</button>
+            </div>
+          </div>
+        `;
+
+        document.getElementById("finishRetry").onclick = () => startRound(state.reviewMode, state.playMode);
+        document.getElementById("finishNormal").onclick = () => startRound("mixed", state.playMode);
+        document.getElementById("finishResetMistakes").onclick = () => {
+          state.mistakes = [];
+          saveMistakes();
+          startRound("mixed", state.playMode);
+        };
+        return;
+      }
+
+      if (state.showCheckpoint) {
+        el.mainArea.innerHTML = `
+          <div class="card checkpoint-card">
+            <h3 style="margin-top:0;">ここでひと休み</h3>
+            <div style="font-size:20px; margin-bottom:8px;">${state.checkpointMessage}</div>
+            <div style="margin-bottom:12px;">いま ${state.index + 1} / ${state.deck.length}問まで完了。スコア ${state.score}</div>
+            <button id="continueBtn">つづける</button>
+          </div>
+        `;
+        document.getElementById("continueBtn").onclick = continueFromCheckpoint;
+        return;
+      }
+
+      if (!q) {
+        el.mainArea.innerHTML = `
+          <div class="card empty-card">
+            ${
+              state.mistakes.length === 0
+              ? "まだ間違い記録がありません。通常モードでまず1回やってみてください。"
+              : "問題がありません。もう一度モードを切り替えてください。"
+            }
+          </div>
+        `;
+        return;
+      }
+
+      if (state.playMode === "write") {
+        el.mainArea.innerHTML = `
+          <div class="question-no">問題 ${state.index + 1} / ${state.deck.length}</div>
+          <div class="yomi">読み: ${escapeHtml(q.yomi)}</div>
+
+          <canvas id="drawCanvas"></canvas>
+
+          <div class="answer-buttons">
+            <button id="clearBtn">消す</button>
+            <button id="showAnswerBtn">答え</button>
+          </div>
+
+          ${
+            state.showAnswer
+            ? `
+              <div class="answer-area">
+                <div class="kanji-answer">${escapeHtml(q.kanji)}</div>
+                <div class="answer-buttons">
+                  <button id="doneBtn">できた +2</button>
+                  <button id="closeBtn">おしい +1</button>
+                  <button id="badBtn">ダメ 0</button>
+                </div>
+              </div>
+            `
+            : ""
+          }
+        `;
+
+        document.getElementById("clearBtn").onclick = () => {
+          initCanvas();
+          clearCanvas();
+        };
+
+        document.getElementById("showAnswerBtn").onclick = () => {
+          saveCanvasSnapshot();
+          state.showAnswer = true;
+          render();
+          initCanvas();
+          if (state.drawingSnapshot) {
+            restoreCanvasSnapshot();
+          }
+        };
+
+        if (state.showAnswer) {
+          document.getElementById("doneBtn").onclick = () => gradeWrite(2, true);
+          document.getElementById("closeBtn").onclick = () => gradeWrite(1, false);
+          document.getElementById("badBtn").onclick = () => gradeWrite(0, false);
+        }
+
+        initCanvas();
+
+        if (state.drawingSnapshot) {
+          restoreCanvasSnapshot();
+        } else {
+          clearCanvas();
+        }
+        return;
+      }
+
+      // せいかいタップモード
+      el.mainArea.innerHTML = `
+        <div class="question-no">問題 ${state.index + 1} / ${state.deck.length}</div>
+        <div class="yomi">読み: ${escapeHtml(q.yomi)}</div>
+        <div class="spot-help">あっている方をタップしてね</div>
+        <div class="spot-grid">
+          ${state.choices.map((c, i) => `
+            <button class="spot-choice" data-index="${i}">${escapeHtml(c.label)}</button>
+          `).join("")}
+        </div>
+      `;
+
+      document.querySelectorAll(".spot-choice").forEach(btn => {
+        btn.onclick = () => {
+          const i = Number(btn.dataset.index);
+          answerSpot(state.choices[i].type);
+        };
+      });
+    }
+
+    function render() {
+      renderMeta();
+      renderMain();
+    }
+
+    window.addEventListener("resize", () => {
+      if (state.playMode === "write" && !state.finished && !state.showCheckpoint) {
+        saveCanvasSnapshot();
+        resizeCanvas();
+      }
+    });
+
+    el.btnWrite.onclick = () => startRound(state.reviewMode, "write");
+    el.btnSpot.onclick = () => startRound(state.reviewMode, "spot");
+    el.btnRestart.onclick = () => startRound("mixed", state.playMode);
+    el.btnMistakesOnly.onclick = () => startRound("mistakesOnly", state.playMode);
+
+    // 初期表示
+    startRound("mixed", "write");
+  </script>
+</body>
+</html>
